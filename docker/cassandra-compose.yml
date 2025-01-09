@@ -1,0 +1,55 @@
+version: "3"
+networks:
+  urlshortnernet:
+services:
+  cassandra-manager:
+    image: cassandra:latest
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+    volumes:
+      - "/home/student/cassandra:/var/lib/cassandra"
+    environment:
+      CASSANDRA_BROADCAST_ADDRESS: cassandra-manager
+    #healthcheck:
+      #test: ["CMD", "cqlsh", "--request-timeout=5", "-e", "describe cluster"]
+      #interval: 30s
+      #retries: 5
+      #timeout: 10s
+      #start_period: 30s
+    networks:
+      - urlshortnernet
+  cassandra-worker1:
+    image: cassandra:latest
+    depends_on:
+      - cassandra-manager
+    environment:
+      - CASSANDRA_BROADCAST_ADDRESS=cassandra-worker1
+      - CASSANDRA_SEEDS=cassandra-manager
+    volumes:
+      - "/home/student/cassandra:/var/lib/cassandra"
+    networks:
+      - urlshortnernet
+    deploy:
+      restart_policy:
+        condition: on-failure
+      placement:      
+        constraints:
+         - node.hostname == node14214688b
+  cassandra-worker2:
+    image: cassandra:latest
+    depends_on:
+      - cassandra-manager
+    environment:
+      - CASSANDRA_BROADCAST_ADDRESS=cassandra-worker2
+      - CASSANDRA_SEEDS=cassandra-manager
+    volumes:
+      - "/home/student/cassandra:/var/lib/cassandra"
+    networks:
+      - urlshortnernet
+    deploy:
+      restart_policy:
+        condition: on-failure
+      placement:      
+        constraints:
+         - node.hostname == node14214688c

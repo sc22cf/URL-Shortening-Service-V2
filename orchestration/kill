@@ -1,0 +1,9 @@
+#!/bin/bash
+SERVER=$1
+NAME=$(ssh "$SERVER" "hostname")
+
+ssh $SERVER "docker swarm leave --force"
+while ! docker node rm $NAME; do
+	sleep 5
+done
+sed -i "/^$SERVER\b/d" hosts

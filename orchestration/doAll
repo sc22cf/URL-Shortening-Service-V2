@@ -1,0 +1,19 @@
+#!/bin/bash
+./killAll
+
+# Create a swarm on manager node
+MASTER=$(head -n 1 hosts)
+docker swarm init --advertise-addr $MASTER
+TOKEN=$(docker swarm join-token worker -q)
+
+# Copy repo, build Python image, join swarm 
+for server in `cat hosts`
+do
+	scp -r "/home/student/a2group07" $server:~
+        ssh $server "mkdir cassandra redis; cd a2group07/docker; docker build -t python-app .; docker swarm join --token \"$TOKEN\" \"$MASTER:2377\""
+done
+
+# Deploy services
+cd /home/student/a2group07/docker
+docker stack deploy -c cassandra-compose.yml urlshortner
+docker stack deploy -c docker-compose.yml urlshortner

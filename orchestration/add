@@ -1,0 +1,50 @@
+#!/bin/bash
+SERVER=$1
+NAME=$(ssh "$SERVER" "hostname")
+TOKEN=$(docker swarm join-token worker -q)
+MASTER=$(head -n 1 hosts)
+
+# Copy repo, build Python image, join swarm 
+scp -r "/home/student/a2group07" $SERVER:~
+ssh $SERVER "mkdir cassandra redis; cd a2group07/docker; docker build -t python-app .; docker swarm join --token \"$TOKEN\" \"$MASTER:2377\""
+if [ $? -ne 0 ]; then
+  echo "Node is already part of the swarm."
+  exit 1
+fi
+
+echo $SERVER >> hosts
+
+WORKER_NUM=$(docker node ls --filter role=worker --format '{{.Status}}' | grep Ready | wc -l)
+if (( $WORKER_NUM < 3 )); then
+	WORKER_NUM=3
+else
+	WORKER_NUM=$WORKER_NUM 
+fi
+FILE="cassandra-compose.yml"
+SERVICE="
+  cassandra-worker$WORKER_NUM:
+    image: cassandra:latest
+    depends_on:
+      - cassandra-manager
+    environment:
+      - CASSANDRA_BROADCAST_ADDRESS=cassandra-worker$WORKER_NUM
+      - CASSANDRA_SEEDS=cassandra-manager
+    volumes:
+      - \"/home/student/cassandra:/var/lib/cassandra\"
+    networks:
+      - urlshortnernet
+    deploy:
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+         - node.hostname == $NAME"
+
+# Create/modify yml file to add Cassandra on the node
+cd /home/student/a2group07/docker
+if grep -q "cassandra-worker$WORKER_NUM:" "$FILE"; then
+  docker stack deploy -c $FILE urlshortner
+else
+  echo "$SERVICE" >> "$FILE"
+  docker stack deploy -c $FILE urlshortner
+fi
